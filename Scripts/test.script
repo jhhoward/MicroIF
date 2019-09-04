@@ -1,0 +1,52 @@
+# Anything after a # is ignored
+# Indentations are not required but just make it easier to read
+
+# Flags
+flag frontDoorOpen is false
+flag frontDoorLocked is true
+flag keyFound is false
+
+# Items
+item key
+	title "Key"
+	description "A copper key"
+
+# Rooms
+room kitchen
+	title "Kitchen"
+	description "The kitchen"
+	
+	option "drawer" when not keyFound
+		say "You find a key!"
+		give key
+		set keyFound
+	option "drawer" when keyFound
+		say "Nothing else in the drawer"
+	option "west"
+		go hallway
+		
+room hallway
+	title "Hallway"
+	description "The hallway"
+	option "east" 
+		go kitchen
+	option "north" when frontDoorOpen
+		go outside
+	option "door" when frontDoorLocked
+		say "The door is locked"
+	option "door" when not frontDoorLocked and not frontDoorOpen
+		say "You open the door"
+		set frontDoorOpen
+	option "door" when frontDoorOpen
+		say "You close the door"
+		unset frontDoorOpen
+	option key
+		say "You unlock the door"
+		remove key
+		unset frontDoorLocked
+		
+room outside
+	title "Outside"
+	description "Outside of the house"
+	option "south"
+		go hallway

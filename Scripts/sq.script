@@ -1,0 +1,195 @@
+# Space Quest text adventure demake
+
+# Items
+item cartridge
+	title "cartridge"
+	description "This is a data storage cartridge.  On it are the words 'Astral Body Formation: The Untold Story.'"
+item keycard
+	title "keycard"
+	description "A flat rectangular piece of synthetic material, magnetically keyed for passing check stations."
+item magnet
+	title "magnet"
+	description "A magnet"
+
+# Rooms
+
+# Intro
+room intro
+	title "Space Quest Chapter 1"
+	
+	on enter
+		say "The Sarien Encounter"
+			""
+			"Demake by James Howard"
+			"Original game designed by Mark Crowe and Scott Murphy."
+		go closet
+	#option "play"
+	#	go closet
+	#option "skip intro"
+	#	go closet
+
+room dead
+	title "Game over!"
+	on enter
+		say "Thank you for playing Space Quest. Too bad you've failed miserably and doomed all your people to a horrible death at the hands of the Sariens."
+		say "If you continue playing as skillfully as this, we'll never have a chance for a sequel. Better luck next time."
+		
+	option "restart"
+		say "Not yet implemented!"
+
+# Arcada
+room closet
+	title "Janitor's closet"
+	description "A small, dark and very cluttered utility closet"
+	
+	option "south"
+		go upperDeck
+
+flag alarmSounded is false
+
+room upperDeck
+	title "Upper deck"
+	description "One of the many hallways of the Arcada."
+	
+	on enter when not alarmSounded
+		say "You are startled by the sound of an alarm. It is followed by an urgent voice which warns that the Arcada has been boarded by unknown intruders. It ends abruptly."
+		set alarmSounded
+
+	option "north"
+		go closet
+	option "west"
+		go library
+	
+flag scientistEntered is false
+flag spokenToScientist is false
+flag visitedLibrary is false
+
+room library
+	title "Library"
+	description "This is the Arcada's data archive. Many volumes of information are stored on data cartridges."
+	
+	on enter when not visitedLibrary
+		set visitedLibrary
+	on enter when visitedLibrary and not scientistEntered
+		set scientistEntered
+		say "The door opens and a man you recognise as one of the lab scientists enters. He appears to be injured! After only a few steps he slumps to the floor."
+	
+	option "east"
+		go upperDeck
+	option "west"
+		go upperElevators
+	option "computer"
+		go computer
+	option "scientist" when scientistEntered and not spokenToScientist
+		say "A large laser hole has been burned in his uniform through which you can see previously unexposed tissue. Struggling painfully he raises up on one elbow."
+		say "He tells you the Arcada is under attack and the Star Generator is in danger. You had better leave if you value your life."
+		say "He looks over toward the shelves full of cartridges and utters the words 'astral body'. He then settles to the floor, lifeless."
+		set spokenToScientist
+	option "scientist" when scientistEntered and spokenToScientist
+		say "It's a grisly sight. There is nothing you can do for him now."
+		
+		
+room computer
+	title "Library computer"
+	description "The console consists of a screen, keyboard and cartridge slot. Atop it rests a Model DX Cartridge Retrieval Unit"
+	
+	option "exit"
+		go library
+	option "astral body" when spokenToScientist and not have cartridge
+		say "A robot arm springs to action and retrieves a cartridge from one of the many shelves. You take the cartridge."
+		give cartridge
+		
+room corridorEnd
+	title "Dead end"
+	description "The hallway ends here. The corpse of one of your former crewmates lies here. He is nonfunctional"
+	
+	option "east"
+		go upperElevators
+	option "corpse" when not have keycard
+		say "You search the body of your crewmate and find..."
+		say "a keycard."
+		give keycard
+	option "corpse" when have keycard
+		say "You search the body of your crewmate and find..."
+		say "nothing."
+		
+room upperElevators
+	title "Upper deck elevators"
+	description "Two elevators connect to the lower deck"
+	
+	option "east"
+		go library
+	option "west"
+		go corridorEnd
+	option "down"
+		go lowerElevators
+		
+room lowerElevators
+	title "Lower deck elevators"
+	description "Two elevators connect to the upper deck"
+	option "up"
+		go upperElevators
+	option "north"
+		go lab
+	option "east"
+		go centralControl
+		
+room lab
+	title "Laboratory"
+	description "This is the Star Generator development laboratory.  Due to your incredibly low security clearance you have never been allowed access to this room."
+	option "south"
+		go lowerElevators
+	option "corpse"
+		say "You search the body of your crewmate and find..."
+		say "nothing."
+	option "computer"
+		say "Your mind is boggled in attempting to understand the function of the various buttons, switches, lights, and displays. It appears the board is not operating."
+	option "screen"
+		say "WARNING! Self-Destruct Mechanism Has Been Armed! Evacuate Ship Immediately! THIS IS NOT A TEST!"
+	option "desk" when not have magnet
+		say "On the desk you find a magnet."
+		give magnet
+	option "desk" when have magnet
+		say "There is nothing else on the desk worth taking."
+
+flag avoidedGuard is false
+
+room centralControl
+	title "Central control"
+	description "You are in the central control area of the Arcada. The reactor domes pulsate irregularly, as if they had been tampered with."
+	# This does not look good. Through the window just above the control console, you can see down into the vehicle bay below."
+	on enter when not avoidedGuard
+		say "You think you hear footsteps."
+	option "east" when not avoidedGuard
+		say "An alien intruder appears brandishing a large pulse rifle."
+		say "BANG! In one shot you hit the ground lifeless."
+		say "The alien observes his handiwork briefly, then leaves."
+		go dead
+	option "east" when avoidedGuard
+		go outsideFlightPrep
+	option "west" when not avoidedGuard
+		say "An alien intruder appears brandishing a large pulse rifle."
+		say "BANG! In one shot you hit the ground lifeless."
+		say "The alien observes his handiwork briefly, then leaves."
+		go dead
+	option "west" when avoidedGuard
+		go lowerElevators
+	option "hide" when not avoidedGuard
+		say "You quickly duck behind a desk out of view."
+		say "You hear the footsteps of one of the alien intruders getting louder!"
+		say "Unable to see anyone here, the alien leaves to search elsewhere."
+		set avoidedGuard
+	option "hide" when avoidedGuard
+		say "You quickly duck behind a desk out of view."
+		say "Nobody comes! You come back out of hiding."
+	option "corpse"
+		say "You search the body of your crewmate and find..."
+		say "nothing."
+
+room outsideFlightPrep
+	title "Outside flight prep"
+	description "Outside"
+	
+	option "west"
+		go centralControl
+		
