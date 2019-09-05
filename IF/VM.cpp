@@ -9,7 +9,7 @@ VM::VM(DataArchive& inGameData, DataArchive& inStringData) : gameData(inGameData
 
 void VM::Reset()
 {
-	currentRoomIndex = 0;
+	currentRoomIndex = ReadByteAtAddress(startingRoomDataLocation);
 	
 	gameData.Seek(0);
 	for(int n = 0; n < 256 / 8; n++)
@@ -17,9 +17,11 @@ void VM::Reset()
 		flagState[n] = gameData.ReadByte();
 	}
 
-	if(Execute(ExecutionMode::ExecuteEvent, EVENT_ENTERROOM))
+	lastExecutionResult = Execute(currentRoomIndex, ExecutionMode::ExecuteEvent, EVENT_ENTERROOM);
+
+	if(lastExecutionResult.DidComplete())
 	{
-		Execute(ExecutionMode::EnumerateOptions);
+		Execute(currentRoomIndex, ExecutionMode::EnumerateOptions);
 		state = State::WaitingForOptionChoice;
 	}
 }
@@ -99,7 +101,7 @@ void VM::SetFlag(uint8_t index, bool value)
 	}
 }
 
-bool VM::ExecuteInstructions(bool stepOver)
+VM::ExecutionResult VM::ExecuteInstructions(bool stepOver)
 {
 	bool parsing = true;
 	
@@ -113,13 +115,17 @@ bool VM::ExecuteInstructions(bool stepOver)
 			{
 				gameData.NextByte();
 				uint8_t nextRoom = gameData.ReadByte();
-				if(!stepOver)
+				if(EvaluateCondition() && !stepOver)
 				{
 					currentRoomIndex = nextRoom;
-					bool completed = Execute(ExecutionMode::ExecuteEvent, EVENT_ENTERROOM);
-					if (completed)
+					ExecutionResult goResult = Execute(currentRoomIndex, ExecutionMode::ExecuteEvent, EVENT_ENTERROOM);
+					if (!goResult.DidYield())
 					{
-						Execute(ExecutionMode::EnumerateOptions);
+						Execute(currentRoomIndex, ExecutionMode::EnumerateOptions);
+					}
+					else
+					{
+						return goResult;
 					}
 				}
 			}
@@ -129,11 +135,11 @@ bool VM::ExecuteInstructions(bool stepOver)
 			{
 				gameData.NextByte();
 				uint16_t messageIndex = gameData.ReadWord();
-				if(!stepOver)
+				if(EvaluateCondition() && !stepOver)
 				{
 					currentMessageText = messageIndex;
 					state = State::ShowingMessage;
-					return false;
+					return ExecutionResult(ExecutionResult::Type::Yielded, gameData.Tell());
 				}
 			}
 			break;
@@ -142,7 +148,7 @@ bool VM::ExecuteInstructions(bool stepOver)
 			{
 				gameData.NextByte();
 				uint8_t flag = gameData.ReadByte();
-				if(!stepOver)
+				if(EvaluateCondition() && !stepOver)
 				{
 					SetFlag(flag, true);
 				}
@@ -153,23 +159,40 @@ bool VM::ExecuteInstructions(bool stepOver)
 			{
 				gameData.NextByte();
 				uint8_t flag = gameData.ReadByte();
-				if(!stepOver)
+				if(EvaluateCondition() && !stepOver)
 				{
 					SetFlag(flag, false);
 				}
 			}
 			break;
+
+			case INSTRUCTION_RETURN:
+			{
+				gameData.NextByte();
+				uint16_t value = gameData.ReadWord();
+				if (EvaluateCondition() && !stepOver)
+				{
+					return ExecutionResult(ExecutionResult::Type::Completed, value);
+				}
+			}
+			break;
 			
 			default:
-			return true;
+			return ExecutionResult(ExecutionResult::Type::Completed);
 		}
 	}
 	
-	return true;
+	return ExecutionResult(ExecutionResult::Type::Completed);
 }
 
 bool VM::EvaluateCondition()
 {
+	if (gameData.PeekByte() != INSTRUCTION_CONDITION)
+	{
+		return true;
+	}
+	gameData.NextByte();
+
 	bool parsing = true;
 	bool negate = false;
 	bool result = true;
@@ -230,13 +253,10 @@ bool VM::EvaluateCondition()
 	return result;
 }
 
-#include <stdlib.h>
-
-bool VM::Execute(ExecutionMode mode, uint8_t param)
+VM::ExecutionResult VM::Execute(uint8_t objectIndex, ExecutionMode mode, uint8_t param)
 {
-	RoomHeader roomHeader = GetRoomHeader(currentRoomIndex);
-	
-	gameData.Seek(roomHeader.dataPointer);
+	uint16_t dataPointer = GetObjectDataPointer(objectIndex);
+	gameData.Seek(dataPointer);
 	
 	bool parsing = true;
 	uint8_t optionIndex = 0;
@@ -253,35 +273,20 @@ bool VM::Execute(ExecutionMode mode, uint8_t param)
 			case INSTRUCTION_EVENT:
 				{
 					uint8_t eventId = gameData.ReadByte();
-					bool possible = true;					
-					if(gameData.PeekByte() == INSTRUCTION_CONDITION)
-					{
-						gameData.NextByte();
-						possible = EvaluateCondition();
-					}
+					bool possible = EvaluateCondition();
 					bool stepOver = !possible || mode != ExecutionMode::ExecuteEvent || param != eventId;
-					bool completed = ExecuteInstructions(stepOver);
-					
-					if(!completed)
-					{
-						return false;
-					}
+					ExecutionResult eventResult = ExecuteInstructions(stepOver);
 					
 					if(!stepOver)
 					{
-						return true;
+						return eventResult;
 					}
 				}
 				break;
 			case INSTRUCTION_OPTION:
 				{
 					uint16_t text = gameData.ReadWord();
-					bool visible = true;
-					if(gameData.PeekByte() == INSTRUCTION_CONDITION)
-					{
-						gameData.NextByte();
-						visible = EvaluateCondition();
-					}
+					bool visible = EvaluateCondition();
 					bool stepOver = !visible || mode != ExecutionMode::ExecuteOption || param != optionIndex;
 					if (visible)
 					{
@@ -291,63 +296,41 @@ bool VM::Execute(ExecutionMode mode, uint8_t param)
 						}
 						optionIndex++;
 					}
-					bool completed = ExecuteInstructions(stepOver);
-					if(!completed)
-					{
-						return false;
-					}
+					ExecutionResult optionResult = ExecuteInstructions(stepOver);
 					
 					if(!stepOver)
 					{
-						return true;
+						return optionResult;
 					}					
 				}
 				break;
-			case INSTRUCTION_ITEMOPTION:
-				{
-					uint8_t item = gameData.ReadByte();
-					bool possible = true;
-					if(gameData.PeekByte() == INSTRUCTION_CONDITION)
-					{
-						gameData.NextByte();
-						possible = EvaluateCondition();
-					}
-					bool stepOver = !possible || mode != ExecutionMode::ExecuteItemOption || param != item;
-					bool completed = ExecuteInstructions(stepOver);
-					
-					if(!completed)
-					{
-						return false;
-					}
-					
-					if(!stepOver)
-					{
-						return true;
-					}
-				}
-				break;
 			default:
-				exit(0);
-				break;
+			{
+				//throw "Unexpected instruction";
+			}
+			break;
 		}
 	}
 	
 	if(mode == ExecutionMode::EnumerateOptions)
 	{
 		numOptions = optionIndex;
+		return ExecutionResult(ExecutionResult::Type::Completed);
 	}
 	
-	return true;
+	return ExecutionResult(ExecutionResult::Type::Failed);
 }
 
 void VM::DismissMessage()
 {
 	if(state == State::ShowingMessage)
 	{
-		bool completed = ExecuteInstructions(false);
-		if(completed)
+		gameData.Seek(lastExecutionResult.returnValue);
+		lastExecutionResult = ExecuteInstructions(false);
+
+		if(lastExecutionResult.DidComplete())
 		{
-			Execute(ExecutionMode::EnumerateOptions);
+			Execute(currentRoomIndex, ExecutionMode::EnumerateOptions);
 			state = State::WaitingForOptionChoice;
 		}
 	}
@@ -357,52 +340,33 @@ void VM::ChooseOption(uint8_t index)
 {
 	if(state == State::WaitingForOptionChoice)
 	{
-		Execute(ExecutionMode::ExecuteOption, index);
-	}
-}
-
-void VM::LookAround()
-{
-	if (state == State::WaitingForOptionChoice)
-	{
-		currentMessageText = GetCurrentRoomHeader().description;
-		state = State::ShowingMessage;
+		lastExecutionResult = Execute(currentRoomIndex, ExecutionMode::ExecuteOption, index);
 	}
 }
 
 void VM::UseItem(ItemIndex item)
 {
+	uint8_t numItems = GetNumGameItems();
+
 	if(state == State::WaitingForOptionChoice)
 	{
-		if(GetFlag(item) && item < GetDataHeader().numItems)
-		{
-			Execute(ExecutionMode::ExecuteItemOption, item);
+		if(GetFlag(item) && item < numItems)
+		{	
+			lastExecutionResult = Execute(currentRoomIndex, ExecutionMode::ExecuteEvent, item);
+			if (lastExecutionResult.type == ExecutionResult::Type::Failed)
+			{
+				lastExecutionResult = Execute(item, ExecutionMode::ExecuteEvent, item);
+			}
 		}
 	}
 }
 
-ItemHeader VM::GetItemHeader(ItemIndex item)
-{
-	ItemHeader result;
-	constexpr int itemHeaderStart = 34;
-	constexpr int itemHeaderSize = 4;
-	uint16_t oldAddress = gameData.Tell();
-
-	gameData.Seek(itemHeaderStart + itemHeaderSize * item);
-	result.title = gameData.ReadWord();
-	result.description = gameData.ReadWord();
-
-	gameData.Seek(oldAddress);
-
-	return result;
-}
-
 uint8_t VM::GetNumInventoryItems()
 {
-	DataHeader header = GetDataHeader();
+	uint8_t numItems = GetNumGameItems();
 	uint8_t count = 0;
 
-	for (uint8_t n = 0; n < header.numItems; n++)
+	for (uint8_t n = 0; n < numItems; n++)
 	{
 		if (GetFlag(n))
 		{
@@ -415,10 +379,10 @@ uint8_t VM::GetNumInventoryItems()
 
 ItemIndex VM::GetInventoryItem(uint8_t slotIndex)
 {
-	DataHeader header = GetDataHeader();
+	uint8_t numItems = GetNumGameItems();
 	uint8_t count = 0;
 
-	for (uint8_t n = 0; n < header.numItems; n++)
+	for (uint8_t n = 0; n < numItems; n++)
 	{
 		if (GetFlag(n))
 		{
@@ -435,131 +399,57 @@ ItemIndex VM::GetInventoryItem(uint8_t slotIndex)
 
 void VM::UnlockAllItems()
 {
-	DataHeader header = GetDataHeader();
+	uint8_t numItems = GetNumGameItems();
 
-	for (uint8_t n = 0; n < header.numItems; n++)
+	for (uint8_t n = 0; n < numItems; n++)
 	{
 		SetFlag(n, true);
 	}
 }
 
-DataHeader VM::GetDataHeader()
+StringIndex VM::GetItemName(ItemIndex item)
 {
-	DataHeader result;
-	constexpr int dataHeaderStart = 32;
+	return Execute(item, ExecutionMode::ExecuteEvent, EVENT_NAMEATTRIBUTE).returnValue;
+}
+StringIndex VM::GetItemDescription(ItemIndex item)
+{
+	return Execute(item, ExecutionMode::ExecuteEvent, EVENT_DESCRIPTIONATTRIBUTE).returnValue;
+}
+
+StringIndex VM::GetCurrentRoomName()
+{
+	return Execute(currentRoomIndex, ExecutionMode::ExecuteEvent, EVENT_NAMEATTRIBUTE).returnValue;
+}
+StringIndex VM::GetCurrentRoomDescription()
+{
+	return Execute(currentRoomIndex, ExecutionMode::ExecuteEvent, EVENT_DESCRIPTIONATTRIBUTE).returnValue;
+}
+
+uint8_t VM::GetNumGameItems()
+{
+	return ReadByteAtAddress(numItemsDataLocation);
+}
+
+uint16_t VM::GetObjectDataPointer(uint8_t objectIndex)
+{
+	return ReadWordAtAddress(objectListDataLocation + objectIndex * 2);
+}
+
+uint16_t VM::ReadWordAtAddress(uint16_t address)
+{
 	uint16_t oldAddress = gameData.Tell();
-
-	gameData.Seek(dataHeaderStart);
-	result.numItems = gameData.ReadByte();
-	result.numRooms = gameData.ReadByte();
-
+	gameData.Seek(address);
+	uint16_t result = gameData.ReadWord();
 	gameData.Seek(oldAddress);
-
 	return result;
 }
 
-RoomHeader VM::GetRoomHeader(uint8_t roomIndex)
+uint8_t VM::ReadByteAtAddress(uint16_t address)
 {
-	DataHeader dataHeader = GetDataHeader();
-	RoomHeader result;
-	constexpr int roomHeaderSize = 6;
-	constexpr int itemHeaderStart = 34;
-	constexpr int itemHeaderSize = 4;
-	int roomHeaderStart = itemHeaderStart + itemHeaderSize * dataHeader.numItems;
 	uint16_t oldAddress = gameData.Tell();
-	gameData.Seek(roomHeaderStart + roomHeaderSize * roomIndex);
-	
-	result.title = gameData.ReadWord();
-	result.description = gameData.ReadWord();
-	result.dataPointer = gameData.ReadWord();
-	
+	gameData.Seek(address);
+	uint8_t result = gameData.ReadByte();
 	gameData.Seek(oldAddress);
-
 	return result;
 }
 
-
-#if 0
-#include <iostream>
-#include <stdio.h>
-#include <windows.h>
-
-using namespace std;
-
-int main(int argc, char* argv[])
-{
-	int roomIndex = 1;
-	char buffer[256];
-	
-	VM vm(code, stringData);
-	
-	while(1)
-	{
-		switch(vm.GetState())
-		{
-			case VM::State::WaitingForOptionChoice:
-			{
-				RoomHeader room = vm.GetCurrentRoomHeader();
-				vm.GetText(room.title, buffer);
-				cout << buffer << endl;
-				vm.GetText(room.description, buffer);
-				cout << buffer << endl;
-				
-				for(uint8_t n = 0; n < vm.GetNumOptions(); n++)
-				{
-					vm.GetText(vm.GetOptionText(n), buffer);
-					cout << (n + 1) << " : ";
-					cout << buffer << endl;
-				}
-				
-				int input = getchar();
-				while(getchar() != '\n') {}
-		
-				int option = input - '1';
-				if(option >= 0 && option < vm.GetNumOptions())
-				{
-					vm.ChooseOption((uint8_t) option);
-				}
-			}
-			break;
-			
-			case VM::State::ShowingMessage:
-			{
-				vm.GetText(vm.GetCurrentMessageText(), buffer);
-				cout << buffer << endl;
-				getchar();
-				vm.DismissMessage();
-			}
-			break;
-		}
-		
-		/*
-		RoomHeader roomHeader = vm.GetRoomHeader(vm.GetCurrentRoomIndex());
-		
-		cout << endl << endl;
-		PrintString(roomHeader.title);
-		cout << endl;
-		PrintString(roomHeader.description);
-		cout << endl;
-
-		vm.PrintOptions();
-		
-		int input = getchar();
-		while(getchar() != '\n') {}
-		
-		int option = input - '1';
-		if(option >= 0 && option < vm.GetNumOptions())
-		{
-			vm.ChooseOption((uint8_t) option);
-		}
-		
-		int itemOption = input - 'a';
-		if(itemOption >= 0 && itemOption < vm.GetDataHeader().numItems)
-		{
-			vm.UseItem((uint8_t) itemOption);
-		}*/
-	}
-	
-	return 0;
-}
-#endif

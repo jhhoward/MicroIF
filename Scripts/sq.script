@@ -4,12 +4,18 @@
 item cartridge
 	title "cartridge"
 	description "This is a data storage cartridge.  On it are the words 'Astral Body Formation: The Untold Story.'"
+	on use
+		say "You can't use that here!"
 item keycard
 	title "keycard"
 	description "A flat rectangular piece of synthetic material, magnetically keyed for passing check stations."
+	on use
+		say "You can't use that here!"
 item magnet
 	title "magnet"
 	description "A magnet"
+	on use
+		say "You can't use that here!"
 
 # Rooms
 
@@ -66,7 +72,10 @@ flag visitedLibrary is false
 
 room library
 	title "Library"
-	description "This is the Arcada's data archive. Many volumes of information are stored on data cartridges."
+	description when not scientistEntered 
+		"This is the Arcada's data archive. Many volumes of information are stored on data cartridges."
+	description when scientistEntered 
+		"This is the Arcada's data archive. Many volumes of information are stored on data cartridges. A scientist lies on the floor."
 	
 	on enter when not visitedLibrary
 		set visitedLibrary
@@ -98,10 +107,16 @@ room computer
 	option "astral body" when spokenToScientist and not have cartridge
 		say "A robot arm springs to action and retrieves a cartridge from one of the many shelves. You take the cartridge."
 		give cartridge
+	on use cartridge
+		say "You insert the cartridge into the library computer."
+		say "Suddenly an alien intruder appears brandishing a large pulse rifle."
+		say "BANG! In one shot you hit the ground lifeless."
+		say "The alien observes his handiwork briefly, then leaves."
+		go dead
 		
 room corridorEnd
 	title "Dead end"
-	description "The hallway ends here. The corpse of one of your former crewmates lies here. He is nonfunctional"
+	description "The hallway ends here. The corpse of one of your former crewmates lies here. He is nonfunctional."
 	
 	option "east"
 		go upperElevators
@@ -161,14 +176,14 @@ room centralControl
 	on enter when not avoidedGuard
 		say "You think you hear footsteps."
 	option "east" when not avoidedGuard
-		say "An alien intruder appears brandishing a large pulse rifle."
+		say "Suddenly an alien intruder appears brandishing a large pulse rifle."
 		say "BANG! In one shot you hit the ground lifeless."
 		say "The alien observes his handiwork briefly, then leaves."
 		go dead
 	option "east" when avoidedGuard
 		go outsideFlightPrep
 	option "west" when not avoidedGuard
-		say "An alien intruder appears brandishing a large pulse rifle."
+		say "Suddenly an alien intruder appears brandishing a large pulse rifle."
 		say "BANG! In one shot you hit the ground lifeless."
 		say "The alien observes his handiwork briefly, then leaves."
 		go dead

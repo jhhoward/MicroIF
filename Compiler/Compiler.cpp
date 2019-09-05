@@ -34,12 +34,24 @@ public:
 	
 	virtual void Write(uint8_t value, const string& comment) override
 	{
+		if (numColumns > 0)
+		{
+			numColumns = 0;
+			stream << endl;
+		}
+
 		stream << "0x" << setfill('0') << setw(2) << hex << (int)(value);
 		stream << ",				// " << sanitizeComment(comment) << endl;
 		sizeBytes ++;
 	}
 	virtual void Write(uint8_t value, uint8_t param, const std::string& comment) override
 	{
+		if (numColumns > 0)
+		{
+			numColumns = 0;
+			stream << endl;
+		}
+
 		stream << "0x" << setfill('0') << setw(2) << hex << (int)value << ",";
 		stream << "0x" << setfill('0') << setw(2) << hex << (int)param;
 		stream << ",			// " << sanitizeComment(comment) << endl;
@@ -47,6 +59,12 @@ public:
 	}
 	virtual void Write(uint8_t value, uint16_t param, const std::string& comment) override
 	{
+		if (numColumns > 0)
+		{
+			numColumns = 0;
+			stream << endl;
+		}
+
 		int lower = param & 0xff;
 		int upper = (param >> 8) & 0xff;
 		
@@ -58,6 +76,12 @@ public:
 	}
 	virtual void Write(uint16_t value, const string& comment) override
 	{
+		if (numColumns > 0)
+		{
+			numColumns = 0;
+			stream << endl;
+		}
+
 		int lower = value & 0xff;
 		int upper = (value >> 8) & 0xff;
 		stream << "0x" << setfill('0') << setw(2) << hex << lower << ",";

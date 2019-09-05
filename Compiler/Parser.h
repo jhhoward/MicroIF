@@ -21,6 +21,7 @@ enum class TokenType
 	Flag,
 	On,
 	Enter,
+	Use,
 	When,
 	Not,
 	And,
@@ -46,10 +47,12 @@ private:
 	void ThrowUnexpectedToken();
 	void Expect(TokenType tokenType);
 
-	void ParseOption(class Room* room);
-	void ParseEvent(class Room* room);
-	void ParseCondition(class Room* room);
-	void ParseInstructions(class Room* room);
+	void ParseOption(class GameObject* room);
+	void ParseEvent(class GameObject* room);
+	void ParseCondition(class GameObject* room);
+	void ParseInstructions(class GameObject* room);
+	void ParseGameObject(GameObject* gameObject);
+
 	void ParseRoom();
 	void ParseFlag();
 	void ParseItem();

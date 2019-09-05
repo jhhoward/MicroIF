@@ -25,6 +25,20 @@ private:
 	std::string comment;
 };
 
+class ReturnInstruction : public Instruction
+{
+public:
+	ReturnInstruction(std::string& inReturnValue) : returnValue(inReturnValue) {}
+
+	virtual void Emit(Game& game, GameDataWriter& writer) override
+	{
+		writer.Write((uint8_t)INSTRUCTION_RETURN, game.GetStringTable().GetIndex(returnValue), "\"" + returnValue + "\"");
+	}
+
+private:
+	std::string returnValue;
+};
+
 class EventInstruction : public Instruction
 {
 public:
@@ -52,17 +66,6 @@ public:
 
 protected:	
 	std::string text;
-};
-
-class OptionItemInstruction : public OptionInstruction
-{
-public:
-	OptionItemInstruction(const std::string& inText) : OptionInstruction(inText) {}
-	
-	virtual void Emit(Game& game, GameDataWriter& writer) override
-	{
-		writer.Write((uint8_t) INSTRUCTION_ITEMOPTION, (uint8_t) game.GetItem(text)->index, "item option " + text);
-	}
 };
 
 class GoInstruction : public Instruction
@@ -124,6 +127,20 @@ protected:
 	std::string item;
 };
 
+class UseItemInstruction : public Instruction
+{
+public:
+	UseItemInstruction(const std::string& inItem) : item(inItem) {}
+
+	virtual void Emit(Game& game, GameDataWriter& writer) override
+	{
+		int flagIndex = game.GetItem(item)->index;
+		writer.Write((uint8_t)INSTRUCTION_EVENT, (uint8_t)flagIndex, "use " + item);
+	}
+
+protected:
+	std::string item;
+};
 
 class SetItemStateInstruction : public Instruction
 {

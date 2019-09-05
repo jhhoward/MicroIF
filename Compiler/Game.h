@@ -20,37 +20,48 @@ public:
 	virtual void Comment(const std::string& comment) = 0;
 };
 
-class Room
+class GameObject
 {
 public:
-	Room(const std::string& identifier, int inIndex) : variableName(identifier), index(inIndex) {}
-	~Room();
-	
+	enum class Type
+	{
+		Room,
+		Item
+	};
+
+	GameObject(const std::string& identifier) : variableName(identifier) {}
+	virtual ~GameObject();
+
+	virtual Type GetType() = 0;
+
 	std::string variableName;
-	std::string title;
-	std::string description;
 	int index;
 	std::list<Instruction*> instructions;
-	
+
 	// Used for writing out data
-	int instructionByteSize;
 	int instructionStartLocation;
 };
 
-class Item
+class Room : public GameObject
 {
 public:
-	Item(const std::string& identifier, int inIndex) : variableName(identifier), index(inIndex) {}
-	std::string variableName;
-	std::string title;
-	std::string description;
-	int index;
+	Room(const std::string& identifier) : GameObject(identifier) {}
+
+	virtual Type GetType() { return Type::Room; }
+};
+
+class Item : public GameObject
+{
+public:
+	Item(const std::string& identifier) : GameObject(identifier) {}
+
+	virtual Type GetType() { return Type::Item; }
 };
 
 class Flag
 {
 public:
-	Flag(const std::string& identifier, bool inDefaultValue, int inIndex) : variableName(identifier), defaultValue(inDefaultValue), index(inIndex) {}
+	Flag(const std::string& identifier, bool inDefaultValue) : variableName(identifier), defaultValue(inDefaultValue) {}
 	std::string variableName;
 	bool defaultValue;
 	int index;
@@ -70,15 +81,21 @@ public:
 	void AddString(const std::string& inString);
 	void GenerateGameData(class GameDataWriter& writer);
 	StringTable& GetStringTable() { return *stringTable; }
+
+	Room* startingRoom = nullptr;
 	
 private:
-	std::map<std::string, Room*> rooms;	
-	std::list<Room*> roomsList;
+	std::map<std::string, GameObject*> objectMap;
+	std::list<GameObject*> objectList;
+
+	//std::map<std::string, Room*> rooms;	
+	//std::list<Room*> roomsList;
+	//std::map<std::string, Item*> items;
+	//std::list<Item*> itemsList;
+
 	std::map<std::string, Flag*> flags;
-	std::list<Flag*> flagsList;
+	//std::list<Flag*> flagsList;
 	std::set<std::string> stringSet;
-	std::map<std::string, Item*> items;
-	std::list<Item*> itemsList;
 	
 	StringTable* stringTable = nullptr;
 

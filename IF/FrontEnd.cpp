@@ -23,16 +23,7 @@ void FrontEnd::Update()
 		constexpr int maxColumns = 3;
 		constexpr int columnSpacing = 42;
 		uint8_t totalOptions = 0;
-		//if (Platform::ButtonDown(Platform::Input::Left))
-		//{
-		//	showingInventory = !showingInventory;
-		//	currentSelection = 0;
-		//}
-		//
-		//if (Platform::ButtonDown(Platform::Input::Right))
-		//{
-		//	vm.UnlockAllItems();
-		//}
+
 		if (showingInventory)
 		{
 			DrawStatusBar("Inventory");
@@ -50,8 +41,8 @@ void FrontEnd::Update()
 				for (uint8_t slot = 0; slot < inventoryCount; slot++)
 				{
 					ItemIndex itemIndex = vm.GetInventoryItem(slot);
-					ItemHeader header = vm.GetItemHeader(itemIndex);
-					vm.GetText(header.title, textBuffer);
+					StringIndex itemName = vm.GetItemName(itemIndex);
+					vm.GetText(itemName, textBuffer);
 					Font::PrintString(textBuffer, startRow + row, column * columnSpacing, slot == currentSelection);
 					column++;
 					if (column == maxColumns)
@@ -62,26 +53,24 @@ void FrontEnd::Update()
 
 					if (slot == currentSelection)
 					{
-						vm.GetText(header.description, textBuffer);
+						vm.GetText(vm.GetItemDescription(itemIndex), textBuffer);
 						Font::PrintString(textBuffer, 1, 0);
 					}
 				}
 				Font::PrintString("back", startRow + row, column * columnSpacing, currentSelection == inventoryCount);
 
-				if (Platform::ButtonDown(Platform::Input::A))
+				if (Platform::ButtonDown(Platform::Input::B))
 				{
-					if (currentSelection == inventoryCount)
-					{
-						showingInventory = false;
-					}
-					else
+					if (currentSelection < inventoryCount)
 					{
 						ItemIndex itemIndex = vm.GetInventoryItem(currentSelection);
 						vm.UseItem(itemIndex);
 					}
+					showingInventory = false;
+					currentSelection = 0;
 				}
 
-				if (Platform::ButtonDown(Platform::Input::B))
+				if (Platform::ButtonDown(Platform::Input::A))
 				{
 					showingInventory = false;
 				}
@@ -91,11 +80,10 @@ void FrontEnd::Update()
 		{
 			constexpr uint8_t optionX = 4;
 
-			RoomHeader room = vm.GetCurrentRoomHeader();
-			vm.GetText(room.title, textBuffer);
+			vm.GetText(vm.GetCurrentRoomName(), textBuffer);
 			DrawStatusBar(textBuffer);
 
-			vm.GetText(room.description, textBuffer);
+			vm.GetText(vm.GetCurrentRoomDescription(), textBuffer);
 			Font::PrintString(textBuffer, 1, 0);
 
 			bool showInventoryOption = vm.GetNumInventoryItems() > 0;
@@ -123,7 +111,7 @@ void FrontEnd::Update()
 				Font::PrintString("items", startRow + row, column * columnSpacing, currentSelection == totalOptions - 1);
 			}
 
-			if (Platform::ButtonDown(Platform::Input::A))
+			if (Platform::ButtonDown(Platform::Input::B))
 			{
 				if (showInventoryOption && currentSelection == totalOptions - 1)
 				{
@@ -174,8 +162,7 @@ void FrontEnd::Update()
 	}
 	else if (vm.GetState() == VM::State::ShowingMessage)
 	{
-		RoomHeader room = vm.GetCurrentRoomHeader();
-		vm.GetText(room.title, textBuffer);
+		vm.GetText(vm.GetCurrentRoomName(), textBuffer);
 		DrawStatusBar(textBuffer);
 	
 		vm.GetText(vm.GetCurrentMessageText(), textBuffer);
@@ -188,7 +175,7 @@ void FrontEnd::Update()
 		{
 			messageCharactersToWrite++;
 
-			if (Platform::ButtonDown(Platform::Input::A))
+			if (Platform::ButtonDown(Platform::Input::B))
 			{
 				charactersWritten = Font::PrintString(message, 1, 0, false);
 				messageCharactersToWrite = messageOffset + charactersWritten;
@@ -200,14 +187,14 @@ void FrontEnd::Update()
 
 			if (screenClipped)
 			{
-				if (Platform::ButtonDown(Platform::Input::A))
+				if (Platform::ButtonDown(Platform::Input::B))
 				{
 					messageOffset += charactersWritten;
 				}
 			}
 			else
 			{
-				if (Platform::ButtonDown(Platform::Input::A))
+				if (Platform::ButtonDown(Platform::Input::B))
 				{
 					vm.DismissMessage();
 					messageOffset = 0;

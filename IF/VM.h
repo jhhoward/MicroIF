@@ -15,31 +15,11 @@ public:
 	virtual void NextByte() = 0;
 };
 
-struct RoomHeader
-{
-	StringIndex title;
-	StringIndex description;
-	uint16_t dataPointer;
-};
-
-struct ItemHeader
-{
-	StringIndex title;
-	StringIndex description;
-};
-
-struct DataHeader
-{
-	StringIndex numItems;
-	StringIndex numRooms;
-};
-
 enum class ExecutionMode
 {
 	EnumerateOptions,
 	ExecuteOption,
-	ExecuteItemOption,
-	ExecuteEvent
+	ExecuteEvent,
 };
 
 class VM
@@ -57,13 +37,14 @@ public:
 	// State management
 	void Reset();
 	State GetState() { return state; }
-	RoomHeader GetCurrentRoomHeader()	{ return GetRoomHeader(currentRoomIndex); }
-	void LookAround();
+	StringIndex GetCurrentRoomName();
+	StringIndex GetCurrentRoomDescription();
 
 	// Item management
 	uint8_t GetNumInventoryItems();
 	ItemIndex GetInventoryItem(uint8_t slotIndex);
-	ItemHeader GetItemHeader(ItemIndex item);
+	StringIndex GetItemName(ItemIndex item);
+	StringIndex GetItemDescription(ItemIndex item);	
 	void UseItem(ItemIndex item);
 	void UnlockAllItems();
 
@@ -78,19 +59,49 @@ public:
 	void GetText(StringIndex stringIndex, char* buffer);
 	
 private:
-	bool Execute(ExecutionMode mode, uint8_t param = 0);
+	struct ExecutionResult
+	{
+		enum class Type
+		{
+			Completed = 0,
+			Failed = 1,
+			Yielded = 2
+		};
+
+		ExecutionResult() {}
+		ExecutionResult(Type inType, uint16_t inReturnValue = 0xffff) : type(inType), returnValue(inReturnValue) {}
+
+		Type type;
+		uint16_t returnValue = 0xffff;
+
+		bool DidYield() { return type == Type::Yielded; }
+		bool DidComplete() { return type == Type::Completed; }
+	};
+
+	ExecutionResult Execute(uint8_t objectIndex, ExecutionMode mode, uint8_t param = 0);
+	ExecutionResult ExecuteInstructions(bool stepOver);
+
 	bool GetFlag(uint8_t index);
 	void SetFlag(uint8_t index, bool value);
 	bool EvaluateCondition();
-	bool ExecuteInstructions(bool stepOver);
-
-	DataHeader GetDataHeader();
-	RoomHeader GetRoomHeader(uint8_t roomIndex);
 
 	void GetTextInternal(StringIndex stringIndex, char** buffer);
 	void GetCodedPhrase(uint8_t index, char** buffer);
 
+	uint8_t GetNumGameItems();
+	uint16_t GetObjectDataPointer(uint8_t objectIndex);
+
+	uint16_t ReadWordAtAddress(uint16_t address);
+	uint8_t ReadByteAtAddress(uint16_t address);
+
 	State state;
+	ExecutionResult lastExecutionResult;
+
+	static constexpr uint16_t flagDefaultDataLocation = 0;
+	static constexpr uint16_t numObjectsDataLocation = 32;
+	static constexpr uint16_t numItemsDataLocation = 33;
+	static constexpr uint16_t startingRoomDataLocation = 34;
+	static constexpr uint16_t objectListDataLocation = 35;
 
 	static constexpr int maxOptions = 10;
 	StringIndex optionText[maxOptions];

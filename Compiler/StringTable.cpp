@@ -19,6 +19,7 @@ StringTable::StringTable(const std::set<std::string>& inStringData)
 	
 	constexpr bool forceUpperCase = false;
 	constexpr bool addNewLines = false;
+	constexpr bool compressStrings = true;
 	constexpr int maxColumnWidth = 25;
 	
 	int originalTotalStringSize = 0;
@@ -82,203 +83,222 @@ StringTable::StringTable(const std::set<std::string>& inStringData)
 		delete[] tempString;
 	}
 	
-	vector<string> codedPhrases;
-	constexpr int maxCodedPhrases = 128;
-	constexpr int minTokenLength = 3;
-
-	set<string> potentialPhrasesSet;
-	for (const std::string& constWord : wordSet)
+	if (compressStrings)
 	{
-		string word = " " + constWord + " ";
+		vector<string> codedPhrases;
+		constexpr int maxCodedPhrases = 128;
+		constexpr int minTokenLength = 3;
 
-		if (word.size() >= minTokenLength)
+		set<string> potentialPhrasesSet;
+		for (const std::string& constWord : wordSet)
 		{
-			for (size_t start = 0; start < word.size() - minTokenLength; start++)
+			string word = " " + constWord + " ";
+
+			if (word.size() >= minTokenLength)
 			{
-				for (size_t end = start + minTokenLength; end < word.size(); end++)
+				for (size_t start = 0; start < word.size() - minTokenLength; start++)
 				{
-					string token = word.substr(start, end - start);
-					int count = 0;
-
-					for (const std::string& str : encodedStrings)
+					for (size_t end = start + minTokenLength; end < word.size(); end++)
 					{
-						size_t pos = 0;
+						string token = word.substr(start, end - start);
+						int count = 0;
 
-						while ((pos = str.find(token, pos)) != string::npos)
+						for (const std::string& str : encodedStrings)
 						{
-							count++;
-							pos += token.length();
+							size_t pos = 0;
+
+							while ((pos = str.find(token, pos)) != string::npos)
+							{
+								count++;
+								pos += token.length();
+							}
+						}
+
+						int score = (token.length() - 1) * count - (token.length() + 1);
+
+						if (score > 0)
+						{
+							potentialPhrasesSet.insert(token);
 						}
 					}
+				}
+			}
+		}
+		vector<string> potentialPhrases;
+		for (const string& str : potentialPhrasesSet)
+		{
+			potentialPhrases.push_back(str);
+		}
 
-					int score = (token.length() - 1) * count - (token.length() + 1);
+		while (codedPhrases.size() < maxCodedPhrases)
+		{
+			string bestPhrase = "";
+			int bestScore = 0;
 
-					if (score > 0)
+			for (size_t n = 0; n < potentialPhrases.size(); n++)
+			{
+				string& token = potentialPhrases[n];
+				int count = 0;
+
+				for (const std::string& str : encodedStrings)
+				{
+					size_t pos = 0;
+
+					while ((pos = str.find(token, pos)) != string::npos)
 					{
-						potentialPhrasesSet.insert(token);
+						count++;
+						pos += token.length();
 					}
 				}
-			}
-		}
-	}
-	vector<string> potentialPhrases;
-	for (const string& str : potentialPhrasesSet)
-	{
-		potentialPhrases.push_back(str);
-	}
-	
-	while(codedPhrases.size() < maxCodedPhrases)
-	{	
-		string bestPhrase = "";
-		int bestScore = 0;
 
-		for (size_t n = 0; n < potentialPhrases.size(); n++)
-		{
-			string& token = potentialPhrases[n];
-			int count = 0;
-
-			for (const std::string& str : encodedStrings)
-			{
-				size_t pos = 0;
-
-				while ((pos = str.find(token, pos)) != string::npos)
+				for (const std::string& str : codedPhrases)
 				{
-					count++;
-					pos += token.length();
+					size_t pos = 0;
+
+					while ((pos = str.find(token, pos)) != string::npos)
+					{
+						count++;
+						pos += token.length();
+					}
+				}
+
+				int score = (token.length() - 1) * count - (token.length() + 1);
+
+				if (score <= 0)
+				{
+					potentialPhrases.erase(potentialPhrases.begin() + n);
+					n--;
+				}
+				else if (score > bestScore || bestPhrase == "")
+				{
+					bestPhrase = token;
+					bestScore = score;
 				}
 			}
 
-			for (const std::string& str : codedPhrases)
-			{
-				size_t pos = 0;
+			if (bestPhrase == "")
+				break;
 
-				while ((pos = str.find(token, pos)) != string::npos)
+			unsigned char phraseCode = (unsigned char)(codedPhrases.size() + 128);
+
+			string replacement(1, phraseCode);
+
+			// Replace words in word set
+			set<string> newWordSet;
+			for (const string& wordStr : wordSet)
+			{
+				string str = wordStr;
+				size_t pos = str.find(bestPhrase);
+				while (pos != string::npos)
 				{
-					count++;
-					pos += token.length();
+					str.replace(pos, bestPhrase.size(), replacement);
+					pos = str.find(bestPhrase, pos + replacement.size());
+				}
+				newWordSet.insert(str);
+			}
+			wordSet = newWordSet;
+
+			// Replace in string list
+			for (string& str : encodedStrings)
+			{
+				size_t pos = str.find(bestPhrase);
+				while (pos != string::npos)
+				{
+					str.replace(pos, bestPhrase.size(), replacement);
+					pos = str.find(bestPhrase, pos + replacement.size());
 				}
 			}
 
-			int score = (token.length() - 1) * count - (token.length() + 1);
-
-			if (score <= 0)
+			// Replace in coded phrases
+			for (string& str : codedPhrases)
 			{
-				potentialPhrases.erase(potentialPhrases.begin() + n);
-				n--;
-			}
-			else if (score > bestScore || bestPhrase == "")
-			{
-				bestPhrase = token;
-				bestScore = score;
-			}
-		}
-		
-		if(bestPhrase == "")
-			break;
-		
-		unsigned char phraseCode = (unsigned char)(codedPhrases.size() + 128);
-		
-		string replacement(1, phraseCode);
-		
-		// Replace words in word set
-		set<string> newWordSet;
-		for(const string& wordStr : wordSet)
-		{
-			string str = wordStr;
-			size_t pos = str.find(bestPhrase);
-			while(pos != string::npos)
-			{
-				str.replace(pos, bestPhrase.size(), replacement);
-				pos = str.find(bestPhrase, pos + replacement.size());
-			}
-			newWordSet.insert(str);
-		}
-		wordSet = newWordSet;
-		
-		// Replace in string list
-		for(string& str : encodedStrings)
-		{
-			size_t pos = str.find(bestPhrase);
-			while(pos != string::npos)
-			{
-				str.replace(pos, bestPhrase.size(), replacement);
-				pos = str.find(bestPhrase, pos + replacement.size());
-			}
-		}
-		
-		// Replace in coded phrases
-		for(string& str : codedPhrases)
-		{
-			size_t pos = str.find(bestPhrase);
-			while(pos != string::npos)
-			{
-				str.replace(pos, bestPhrase.size(), replacement);
-				pos = str.find(bestPhrase, pos + replacement.size());
-			}
-		}
-
-		// Replace in potential phrase list
-		for (size_t n = 0; n < potentialPhrases.size(); n++)
-		{
-			string& str = potentialPhrases[n];
-			size_t pos = str.find(bestPhrase);
-			while (pos != string::npos)
-			{
-				str.replace(pos, bestPhrase.size(), replacement);
-				pos = str.find(bestPhrase, pos + replacement.size());
+				size_t pos = str.find(bestPhrase);
+				while (pos != string::npos)
+				{
+					str.replace(pos, bestPhrase.size(), replacement);
+					pos = str.find(bestPhrase, pos + replacement.size());
+				}
 			}
 
-			if (str.size() < 3)
+			// Replace in potential phrase list
+			for (size_t n = 0; n < potentialPhrases.size(); n++)
 			{
-				potentialPhrases.erase(potentialPhrases.begin() + n);
-				n--;
+				string& str = potentialPhrases[n];
+				size_t pos = str.find(bestPhrase);
+				while (pos != string::npos)
+				{
+					str.replace(pos, bestPhrase.size(), replacement);
+					pos = str.find(bestPhrase, pos + replacement.size());
+				}
+
+				if (str.size() < 3)
+				{
+					potentialPhrases.erase(potentialPhrases.begin() + n);
+					n--;
+				}
 			}
+
+			codedPhrases.push_back(bestPhrase);
 		}
-		
-		codedPhrases.push_back(bestPhrase);
+
+
+		//for(string& str : encodedStrings)
+		//{
+		//	cout << str << endl;
+		//}
+		//
+		//for(string& phrase : codedPhrases)
+		//{
+		//	cout << phrase << endl;
+		//}
+
+		for (string& phrase : codedPhrases)
+		{
+			for (char c : phrase)
+			{
+				compressedData.push_back(c);
+			}
+			compressedData.push_back('\0');
+		}
+
+		auto it = inStringData.begin();
+
+		for (string& str : encodedStrings)
+		{
+			stringMap[*it] = (uint16_t)compressedData.size();
+			++it;
+
+			for (char c : str)
+			{
+				compressedData.push_back(c);
+			}
+			compressedData.push_back('\0');
+		}
+
+		int compressedTotalStringSize = compressedData.size();
+
+		cout << "Number of coded phrases: " << codedPhrases.size() << endl;
+		cout << "Original size: " << originalTotalStringSize << " bytes" << endl;
+		cout << "Compressed size: " << compressedTotalStringSize << " bytes" << endl;
+		cout << "Saved : " << (originalTotalStringSize - compressedTotalStringSize) << " bytes" << endl;
+		cout << "Compression ratio: " << ((compressedTotalStringSize * 100) / originalTotalStringSize) << "%" << endl;
 	}
-
-
-	//for(string& str : encodedStrings)
-	//{
-	//	cout << str << endl;
-	//}
-	//
-	//for(string& phrase : codedPhrases)
-	//{
-	//	cout << phrase << endl;
-	//}
-	
-	for(string& phrase : codedPhrases)
+	else
 	{
-		for(char c : phrase)
-		{
-			compressedData.push_back(c);
-		}
-		compressedData.push_back('\0');
-	}
-	
-	auto it = inStringData.begin();
-	
-	for(string& str : encodedStrings)
-	{
-		stringMap[*it] = (uint16_t) compressedData.size();
-		++it;
-		
-		for(char c : str)
-		{
-			compressedData.push_back(c);
-		}
-		compressedData.push_back('\0');
-	}
+		auto it = inStringData.begin();
 
-	int compressedTotalStringSize = compressedData.size();
-	
-	cout << "Number of coded phrases: " << codedPhrases.size() << endl;
-	cout << "Original size: " << originalTotalStringSize << " bytes" << endl;
-	cout << "Compressed size: " << compressedTotalStringSize << " bytes" << endl;
-	cout << "Saved : " << (originalTotalStringSize - compressedTotalStringSize) << " bytes" << endl;
-	cout << "Compression ratio: " << ((compressedTotalStringSize * 100) / originalTotalStringSize) << "%" << endl;
+		for (string& str : encodedStrings)
+		{
+			stringMap[*it] = (uint16_t)compressedData.size();
+			++it;
+
+			for (char c : str)
+			{
+				compressedData.push_back(c);
+			}
+			compressedData.push_back('\0');
+		}
+	}
 }
 
 uint16_t StringTable::GetIndex(const std::string& str)

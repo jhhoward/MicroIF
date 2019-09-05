@@ -5,7 +5,7 @@
 
 using namespace std;
 
-Room::~Room()
+GameObject::~GameObject()
 {
 	for(Instruction* ins : instructions)
 	{
@@ -15,45 +15,64 @@ Room::~Room()
 
 Room* Game::GetRoom(const string& name)
 {
-	auto it = rooms.find(name);
-	if(it == rooms.end())
+	auto it = objectMap.find(name);
+	if(it == objectMap.end())
 	{
 		throw exception(("Room with name " + name + " not found!").c_str());
 	}
-	return rooms[name];
+
+	GameObject* obj = it->second;
+	if (obj->GetType() == GameObject::Type::Room)
+		return (Room*)(obj);
+	else
+	{
+		throw exception(("Object with name " + name + " is not a room!").c_str());
+	}	
 }
 
 Room* Game::NewRoom(const string& name)
 {
-	if(rooms.find(name) != rooms.end())
+	if(objectMap.find(name) != objectMap.end())
 	{
-		throw exception(("Room with name " + name + " already exists!").c_str());
+		throw exception(("Object with name " + name + " already exists!").c_str());
 	}
-	Room* room = new Room(name, rooms.size());
-	rooms[name] = room;
-	roomsList.push_back(room);
+
+	Room* room = new Room(name);
+	objectMap[name] = room;
+
+	if (!startingRoom)
+	{
+		startingRoom = room;
+	}
 	return room;
 }
 
 Item* Game::GetItem(const string& name)
 {
-	auto it = items.find(name);
-	if(it == items.end())
+	auto it = objectMap.find(name);
+	if (it == objectMap.end())
 	{
 		throw exception(("Item with name " + name + " not found!").c_str());
 	}
-	return items[name];
+
+	GameObject* obj = it->second;
+	if (obj->GetType() == GameObject::Type::Item)
+		return (Item*)(obj);
+	else
+	{
+		throw exception(("Object with name " + name + " is not an item!").c_str());
+	}
 }
 
 Item* Game::NewItem(const string& name)
 {
-	if(items.find(name) != items.end())
+	if (objectMap.find(name) != objectMap.end())
 	{
-		throw exception(("Item with name " + name + " already exists!").c_str());
+		throw exception(("Object with name " + name + " already exists!").c_str());
 	}
-	Item* item = new Item(name, items.size());
-	items[name] = item;
-	itemsList.push_back(item);
+
+	Item* item = new Item(name);
+	objectMap[name] = item;
 	return item;
 }
 
@@ -64,7 +83,7 @@ int Game::GetFlagIndex(const std::string& name)
 	{
 		throw exception(("Flag with name " + name + " not found!").c_str());
 	}
-	return it->second->index + itemsList.size();
+	return it->second->index;
 }
 
 void Game::AddFlag(const string& flagName, bool defaultValue)
@@ -73,9 +92,8 @@ void Game::AddFlag(const string& flagName, bool defaultValue)
 	{
 		throw exception(("Flag with name " + flagName + " already exists!").c_str());
 	}
-	Flag* flag = new Flag(flagName, defaultValue, flags.size());
+	Flag* flag = new Flag(flagName, defaultValue);
 	flags[flagName] = flag;
-	flagsList.push_back(flag);
 }
 
 void Game::AddString(const string& inString)
@@ -85,13 +103,13 @@ void Game::AddString(const string& inString)
 
 Game::~Game()
 {
-	for(Room* room : roomsList)
+	for(auto& it : objectMap)
 	{
-		delete room;
+		delete it.second;
 	}
-	for(Flag* flag : flagsList)
+	for(auto& it: flags)
 	{
-		delete flag;
+		delete it.second;
 	}
 	
 	if(stringTable)
@@ -114,77 +132,108 @@ public:
 void Game::GenerateGameData(GameDataWriter& writer)
 {
 	stringTable = new StringTable(stringSet);
-	
-	if(flagsList.size() + itemsList.size() > 256)
+
+	// Generate object list
+	int numItems = 0;
+	objectList.clear();
+
+	// First add items, then add rooms, generate indices for each object type
+	for (auto& it : objectMap)
+	{
+		if (it.second->GetType() == GameObject::Type::Item)
+		{
+			it.second->index = objectList.size();
+			objectList.push_back(it.second);
+			numItems++;
+		}
+	}
+	for (auto& it : objectMap)
+	{
+		if (it.second->GetType() == GameObject::Type::Room)
+		{
+			it.second->index = objectList.size();
+			objectList.push_back(it.second);
+		}
+	}
+
+	// Assign flag indices
+	int flagIndex = numItems;
+	for (auto& it : flags)
+	{
+		it.second->index = flagIndex++;
+	}
+
+	if(flags.size() + numItems > 256)
 	{
 		throw exception("Too many flags + items, reached 256 limit!");
+	}
+	if (objectList.size() >= 256)
+	{
+		throw exception("Too many objects, reached 256 limit!");
 	}
 	
 	constexpr int numFlagBytes = 256 / 8;
 	uint8_t defaultValues[numFlagBytes];
 	memset(defaultValues, 0, numFlagBytes);
 	
-	for(Flag* flag : flagsList)
+	for(auto& it : flags)
 	{
+		Flag* flag = it.second;
 		if(flag->defaultValue)
 		{
-			int index = flag->index + itemsList.size();
-			int byteIndex = index / 8;
-			int bitMask = 1 << (index % 8);
+			int byteIndex = flag->index / 8;
+			int bitMask = 1 << (flag->index % 8);
 			defaultValues[byteIndex] |= bitMask;
 		}
 	}
 	
+	// Write default flag values
 	writer.Comment("Default flag values");
 	for(int n = 0; n < numFlagBytes; n++)
 	{
 		writer.Write(defaultValues[n]);
 	}
 	
-	writer.Write((uint8_t) items.size(), "num items");
-	writer.Write((uint8_t) rooms.size(), "num rooms");
-	
-	constexpr int sizeOfRoomHeader = 6;
-	constexpr int sizeOfItemHeader = 4; 
-	constexpr int sizeOfDataHeader = 2 + numFlagBytes;
-	
-	for(Item* item : itemsList)
+	// Write object header
+	writer.Write((uint8_t)objectList.size(), "num objects");
+	writer.Write((uint8_t)numItems, "num items");
+	if (!startingRoom)
 	{
-		writer.Comment(item->variableName);
-		writer.Write(stringTable->GetIndex(item->title), "\"" + item->title + "\"");
-		writer.Write(stringTable->GetIndex(item->description), "\"" + item->description + "\"");
+		throw exception("No room to start in!");
 	}
+	writer.Write((uint8_t)startingRoom->index, "starting room : " + startingRoom->variableName);	
 	
-	int roomDataStartLocation = sizeOfDataHeader + roomsList.size() * sizeOfRoomHeader + itemsList.size() * sizeOfItemHeader;
+	constexpr int sizeOfObjectHeader = 2;
+	constexpr int sizeOfDataHeader = 3 + numFlagBytes;
 	
-	int instructionStartLocation = roomDataStartLocation;
+	int objectDataStartLocation = sizeOfDataHeader + objectList.size() * sizeOfObjectHeader;
+	int instructionStartLocation = objectDataStartLocation;
 	
-	// Calculate instructions size for each room
-	for(Room* room : roomsList)
+	// Calculate instructions size for each object
+	for(GameObject* obj : objectList)
 	{
 		DataSizeCalculator calculator;
 		
-		for(Instruction* instruction : room->instructions)
+		for(Instruction* instruction : obj->instructions)
 		{
 			instruction->Emit(*this, calculator);
 		}
-		room->instructionByteSize = calculator.size;
-		room->instructionStartLocation = instructionStartLocation;
-		instructionStartLocation += room->instructionByteSize;
+		obj->instructionStartLocation = instructionStartLocation;
+		instructionStartLocation += calculator.size;
 	}
 	
-	for(Room* room : roomsList)
+	// Write list of game object pointers
+	for (GameObject* obj : objectList)
 	{
-		writer.Comment(room->variableName + " [" + to_string(room->index) + "]");
-		writer.Write(stringTable->GetIndex(room->title), "\"" + room->title + "\"");
-		writer.Write(stringTable->GetIndex(room->description), "\"" + room->description + "\"");
-		writer.Write((uint16_t) room->instructionStartLocation, "data offset");
+		writer.Comment(obj->variableName + " [" + to_string(obj->index) + "]");
+		writer.Write((uint16_t) obj->instructionStartLocation, "data offset");
 	}
 	
-	for(Room* room : roomsList)
+	// Write instructions for each game object
+	for (GameObject* obj : objectList)
 	{
-		writer.Comment(room->variableName + " data");
-		for(Instruction* instruction : room->instructions)
+		writer.Comment(obj->variableName + " data");
+		for(Instruction* instruction : obj->instructions)
 		{
 			instruction->Emit(*this, writer);
 		}

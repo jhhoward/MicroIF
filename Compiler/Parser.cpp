@@ -7,7 +7,7 @@ using namespace std;
 
 const char* TokenTypeNames[] =
 {
-	"null", "room", "item", "title", "description", "option", "go", "say", "give", "remove", "set", "unset", "flag", "on", "enter", "when", "not", "and", "or", "is", "have", "true", "false", "string", "identifier"
+	"null", "room", "item", "title", "description", "option", "go", "say", "give", "remove", "set", "unset", "flag", "on", "enter", "use", "when", "not", "and", "or", "is", "have", "true", "false", "string", "identifier"
 };
 
 void Parser::ThrowUnexpectedToken()
@@ -151,9 +151,12 @@ bool Parser::NextToken()
 	return true;
 }
 
-void Parser::ParseCondition(Room* room)
+void Parser::ParseCondition(GameObject* gameObject)
 {
-	room->instructions.push_back(new BasicInstruction(INSTRUCTION_CONDITION, "when"));
+	if (tokenType != TokenType::When)
+		return;
+
+	gameObject->instructions.push_back(new BasicInstruction(INSTRUCTION_CONDITION, "when"));
 	NextToken();
 	
 	while(isParsing)
@@ -163,27 +166,27 @@ void Parser::ParseCondition(Room* room)
 		case TokenType::Have:
 			NextToken();
 			Expect(TokenType::Identifier);
-			room->instructions.push_back(new EvalHaveItemInstruction(tokenString));
+			gameObject->instructions.push_back(new EvalHaveItemInstruction(tokenString));
 			NextToken();
 			break;
 		case TokenType::Identifier:
-			room->instructions.push_back(new EvalFlagInstruction(tokenString));
+			gameObject->instructions.push_back(new EvalFlagInstruction(tokenString));
 			NextToken();
 			break;
 		case TokenType::Not:
-			room->instructions.push_back(new BasicInstruction(INSTRUCTION_NOT, "not"));
+			gameObject->instructions.push_back(new BasicInstruction(INSTRUCTION_NOT, "not"));
 			NextToken();
 			if(tokenType != TokenType::Identifier && tokenType != TokenType::Have)
 				ThrowUnexpectedToken();
 			break;
 		case TokenType::And:
-			room->instructions.push_back(new BasicInstruction(INSTRUCTION_AND, "and"));
+			gameObject->instructions.push_back(new BasicInstruction(INSTRUCTION_AND, "and"));
 			NextToken();
 			if(tokenType != TokenType::Identifier && tokenType != TokenType::Not && tokenType != TokenType::Have)
 				ThrowUnexpectedToken();
 			break;
 		case TokenType::Or:
-			room->instructions.push_back(new BasicInstruction(INSTRUCTION_OR, "or"));
+			gameObject->instructions.push_back(new BasicInstruction(INSTRUCTION_OR, "or"));
 			NextToken();
 			if(tokenType != TokenType::Identifier && tokenType != TokenType::Not && tokenType != TokenType::Have)
 				ThrowUnexpectedToken();
@@ -194,20 +197,38 @@ void Parser::ParseCondition(Room* room)
 	}
 }
 
-void Parser::ParseEvent(Room* room)
+void Parser::ParseEvent(GameObject* gameObject)
 {
 	NextToken();
 	
 	switch(tokenType)
 	{
 		case TokenType::Enter:
-		room->instructions.push_back(new EventInstruction((uint8_t)EVENT_ENTERROOM, "on enter"));
+		gameObject->instructions.push_back(new EventInstruction((uint8_t)EVENT_ENTERROOM, "on enter"));
 		NextToken();
-		if(tokenType == TokenType::When)
+		ParseCondition(gameObject);
+		ParseInstructions(gameObject);
+		break;
+
+		case TokenType::Use:
 		{
-			ParseCondition(room);
+			NextToken();
+			string targetItem;
+			if (gameObject->GetType() == GameObject::Type::Item)
+			{
+				targetItem = gameObject->variableName;
+			}
+			else
+			{
+				Expect(TokenType::Identifier);
+				targetItem = tokenString;
+				NextToken();
+			}
+			gameObject->instructions.push_back(new UseItemInstruction(targetItem));
+
+			ParseCondition(gameObject);
+			ParseInstructions(gameObject);
 		}
-		ParseInstructions(room);
 		break;
 		
 		default:
@@ -216,7 +237,7 @@ void Parser::ParseEvent(Room* room)
 	}
 }
 
-void Parser::ParseOption(Room* room)
+void Parser::ParseOption(GameObject* room)
 {
 	NextToken();
 	
@@ -225,10 +246,6 @@ void Parser::ParseOption(Room* room)
 		game.AddString(tokenString);
 		room->instructions.push_back(new OptionInstruction(tokenString));
 	}
-	else if(tokenType == TokenType::Identifier)
-	{
-		room->instructions.push_back(new OptionItemInstruction(tokenString));
-	}
 	else
 	{
 		ThrowUnexpectedToken();
@@ -236,15 +253,12 @@ void Parser::ParseOption(Room* room)
 	
 	NextToken();
 
-	if(tokenType == TokenType::When)
-	{
-		ParseCondition(room);
-	}
+	ParseCondition(room);
 	
 	ParseInstructions(room);
 }
 	
-void Parser::ParseInstructions(Room* room)
+void Parser::ParseInstructions(GameObject* gameObject)
 {
 	while(isParsing)
 	{
@@ -253,48 +267,49 @@ void Parser::ParseInstructions(Room* room)
 		case TokenType::Go:
 			NextToken();
 			Expect(TokenType::Identifier);
-			room->instructions.push_back(new GoInstruction(tokenString));
+			gameObject->instructions.push_back(new GoInstruction(tokenString));
 			NextToken();
 			break;
 			
 		case TokenType::Set:
 			NextToken();
 			Expect(TokenType::Identifier);
-			room->instructions.push_back(new SetFlagInstruction(tokenString, true));
+			gameObject->instructions.push_back(new SetFlagInstruction(tokenString, true));
 			NextToken();
 			break;
 
 		case TokenType::Unset:
 			NextToken();
 			Expect(TokenType::Identifier);
-			room->instructions.push_back(new SetFlagInstruction(tokenString, false));
+			gameObject->instructions.push_back(new SetFlagInstruction(tokenString, false));
 			NextToken();
 			break;
 			
 		case TokenType::Give:
 			NextToken();
 			Expect(TokenType::Identifier);
-			room->instructions.push_back(new SetItemStateInstruction(tokenString, true));
+			gameObject->instructions.push_back(new SetItemStateInstruction(tokenString, true));
 			NextToken();
 			break;
 
 		case TokenType::Remove:
 			NextToken();
 			Expect(TokenType::Identifier);
-			room->instructions.push_back(new SetItemStateInstruction(tokenString, false));
+			gameObject->instructions.push_back(new SetItemStateInstruction(tokenString, false));
 			NextToken();
 			break;
 			
 		case TokenType::Say:
 			NextToken();
 			Expect(TokenType::String);
-			room->instructions.push_back(new SayInstruction(tokenString));
+			gameObject->instructions.push_back(new SayInstruction(tokenString));
 			game.AddString(tokenString);
 			NextToken();
 			break;
 			
 		case TokenType::Room:
 		case TokenType::Flag:
+		case TokenType::Item:
 		case TokenType::Option:
 		case TokenType::On:
 			return;
@@ -305,6 +320,51 @@ void Parser::ParseInstructions(Room* room)
 	}
 }
 
+void Parser::ParseGameObject(GameObject* gameObject)
+{
+	while (isParsing)
+	{
+		switch (tokenType)
+		{
+		case TokenType::Room:
+		case TokenType::Flag:
+		case TokenType::Item:
+			gameObject->instructions.push_back(new BasicInstruction(INSTRUCTION_NULL, "end"));
+			return;
+
+		case TokenType::Description:
+			NextToken();
+			gameObject->instructions.push_back(new EventInstruction(EVENT_DESCRIPTIONATTRIBUTE, "description"));
+			ParseCondition(gameObject);
+			Expect(TokenType::String);
+			game.AddString(tokenString);
+			gameObject->instructions.push_back(new ReturnInstruction(tokenString));
+			NextToken();
+			break;
+		case TokenType::Title:
+			NextToken();
+			gameObject->instructions.push_back(new EventInstruction(EVENT_NAMEATTRIBUTE, "title"));
+			ParseCondition(gameObject);
+			Expect(TokenType::String);
+			game.AddString(tokenString);
+			gameObject->instructions.push_back(new ReturnInstruction(tokenString));
+			NextToken();
+			break;
+		case TokenType::Option:
+			ParseOption(gameObject);
+			break;
+		case TokenType::On:
+			ParseEvent(gameObject);
+			break;
+
+		default:
+			ThrowUnexpectedToken();
+		}
+	}
+
+	gameObject->instructions.push_back(new BasicInstruction(INSTRUCTION_NULL, "end"));
+}
+
 void Parser::ParseRoom()
 {
 	NextToken();
@@ -313,44 +373,8 @@ void Parser::ParseRoom()
 	Room* newRoom = game.NewRoom(tokenString);
 	
 	NextToken();
-	
-	while(isParsing)
-	{
-		switch(tokenType)
-		{
-			case TokenType::Room:
-			case TokenType::Flag:
-			case TokenType::Item:
-				newRoom->instructions.push_back(new BasicInstruction(INSTRUCTION_NULL, "end"));
-				return;
-				
-			case TokenType::Description:
-				NextToken();
-				Expect(TokenType::String);
-				newRoom->description = tokenString;
-				game.AddString(newRoom->description);
-				NextToken();
-				break;
-			case TokenType::Title:
-				NextToken();
-				Expect(TokenType::String);
-				newRoom->title = tokenString;
-				game.AddString(newRoom->title);
-				NextToken();
-				break;
-			case TokenType::Option:
-				ParseOption(newRoom);
-				break;
-			case TokenType::On:
-				ParseEvent(newRoom);
-				break;
-				
-			default:
-				ThrowUnexpectedToken();
-		}
-	}
-	
-	newRoom->instructions.push_back(new BasicInstruction(INSTRUCTION_NULL, "end"));
+
+	ParseGameObject(newRoom);
 }
 
 void Parser::ParseItem()
@@ -361,35 +385,8 @@ void Parser::ParseItem()
 	Item* newItem = game.NewItem(tokenString);
 	
 	NextToken();
-	
-	while(isParsing)
-	{
-		switch(tokenType)
-		{
-			case TokenType::Room:
-			case TokenType::Flag:
-			case TokenType::Item:
-				return;
-				
-			case TokenType::Description:
-				NextToken();
-				Expect(TokenType::String);
-				newItem->description = tokenString;
-				game.AddString(newItem->description);
-				NextToken();
-				break;
-			case TokenType::Title:
-				NextToken();
-				Expect(TokenType::String);
-				newItem->title = tokenString;
-				game.AddString(newItem->title);
-				NextToken();
-				break;
-				
-			default:
-				ThrowUnexpectedToken();
-		}
-	}
+
+	ParseGameObject(newItem);
 }
 
 void Parser::ParseFlag()
