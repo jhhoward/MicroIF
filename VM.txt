@@ -1,0 +1,134 @@
+VM details
+----------
+
+Variables:
+There are 256 1-bit flag variables. These are a combination of item status (have item / not have item) and general purpose logic flags.
+The first N flags are reserved for however many items that have been defined. e.g. flag 3 == whether item at index 3 is possessed
+
+There a one byte 'current room' variable that is modified by the 'go' command
+
+Game data layout:
+[32 byte] Default flag values for the 256 1-bit flag variables
+[1 byte] Number of object data blocks (rooms and items)
+[1 byte] Number of items
+[1 byte] Index for starting room
+For each object data block:
+	[2 byte] Little endian pointer offset to object data block
+For each object data block:
+	[N bytes] Collection of VM instructions terminated by a null instruction (0)
+	
+Object data blocks:
+Each item and room has its own object data block. Items always come first in the list of objects, followed by rooms.
+Object data blocks are split into 'event' and 'option' handlers
+
+Events:
+Event handlers are for specific game events such as entering a room or using an item. They are also used for retrieving [name] and [description] attributes.
+The first N event IDs represent using an item. i.e. event id 3 == what to do when using item at index 3
+
+Options:
+Option handlers are for the various options available to the player in a given room.
+
+Conditions:
+Events and options can have a condition associated with them based on the flag variables. This determines whether events should be handled or options should be visible.
+
+Execution:
+The VM can be executed in three modes:
+- Enumerate options : builds a list of available options for a given room
+- Trigger event [id]
+- Choose option [id]
+
+The VM will be placed in a yield state when player input is required (i.e. when displaying a message to the player)
+
+Attributes (i.e. [name] and [description]) are retrieved by triggering the appropriate event on a room / item. 
+This means that they can change at run time based on flag states by using a conditional.
+
+
+Strings and compression
+-----------------------
+
+The string table is just a collection of strings, separated by NUL (\0) characters.
+Strings in the VM instructions are pointer offsets from the start of the string table.
+Characters in the range [0-127] map directly to ASCII values.
+Characters in the range [128-255] map to commonly used phrases / substrings
+
+The first (up to 128) strings in the string table are used to store the commonly used phrases.
+
+Pseudo code to decode a string:
+
+print(string):
+	for each character:
+		if in range[0-127]:
+			print character
+		else:
+			N = character - 128
+			print(Nth string in string table)
+
+Note that the above code can be recursive when resolving commonly used phrases
+
+Typical compression rate is ~70%
+Maybe not the best compression rate but is designed so that decoding strings is as simple as possible
+
+
+Scripting language
+------------------
+
+Comments can be denoted with a # where everything for the rest of the line is ignored by the compiler
+
+Variables:
+
+flag <identifier> is <true/false>
+e.g. 
+flag doorLocked is true
+
+Items:
+
+item <identifier>
+...
+
+Rooms:
+
+room <identifier>
+...
+
+Attributes:
+
+title [condition] "value"
+description [condition] "value"
+
+e.g.
+title "The kitchen"
+description when ovenOn "An ordinary kitchen. The oven is switched on."
+description when not ovenOn "An ordinary kitchen. The oven is switched off"
+
+Options:
+
+option "value" [condition]
+...
+e.g.
+option "east"
+	go kitchen
+option "west" when not doorLocked
+	go bathroom
+
+Events:
+
+on enter [condition]
+...
+
+on use <item> [condition]
+...
+
+e.g.
+on enter when fireLit
+	say "It feels warm in here!"
+on use matches when not fireLit
+	say "You light the fire"
+	set fireLit
+
+Instructions:
+
+go <room> [condition]
+say "message" [condition]
+
+set <flag> [condition]
+unset <flag> [condition]
