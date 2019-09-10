@@ -23,6 +23,7 @@ void FrontEnd::Update()
 		constexpr int maxColumns = 3;
 		constexpr int columnSpacing = 42;
 		uint8_t totalOptions = 0;
+		int numRows = 0;
 
 		if (showingInventory)
 		{
@@ -35,15 +36,17 @@ void FrontEnd::Update()
 				int row = 0;
 				int column = 0;
 				totalOptions = inventoryCount + 1;
-				int numRows = ((totalOptions - 1) / maxColumns) + 1;
+				numRows = ((totalOptions - 1) / maxColumns) + 1;
 				int startRow = (Platform::DisplayHeight / Font::glyphHeight) - numRows;
+
+				Platform::FillRect(0, Platform::DisplayHeight - numRows * Font::glyphHeight - 1, Platform::DisplayWidth, numRows * Font::glyphHeight + 1, 1);
 
 				for (uint8_t slot = 0; slot < inventoryCount; slot++)
 				{
 					ItemIndex itemIndex = vm.GetInventoryItem(slot);
 					StringIndex itemName = vm.GetItemName(itemIndex);
 					vm.GetText(itemName, textBuffer);
-					Font::PrintString(textBuffer, startRow + row, column * columnSpacing, slot == currentSelection);
+					Font::PrintString(textBuffer, startRow + row, 1 + column * columnSpacing, slot != currentSelection);
 					column++;
 					if (column == maxColumns)
 					{
@@ -57,7 +60,7 @@ void FrontEnd::Update()
 						Font::PrintString(textBuffer, 1, 0);
 					}
 				}
-				Font::PrintString("back", startRow + row, column * columnSpacing, currentSelection == inventoryCount);
+				Font::PrintString("back", startRow + row, 1 + column * columnSpacing, currentSelection != inventoryCount);
 
 				if (Platform::ButtonDown(Platform::Input::B))
 				{
@@ -91,13 +94,15 @@ void FrontEnd::Update()
 
 			int row = 0;
 			int column = 0;
-			int numRows = ((totalOptions - 1) / maxColumns) + 1;
+			numRows = ((totalOptions - 1) / maxColumns) + 1;
 			int startRow = (Platform::DisplayHeight / Font::glyphHeight) - numRows;
+
+			Platform::FillRect(0, Platform::DisplayHeight - numRows * Font::glyphHeight - 1, Platform::DisplayWidth, numRows * Font::glyphHeight + 1, 1);
 
 			for (uint8_t n = 0; n < vm.GetNumOptions(); n++)
 			{
 				vm.GetText(vm.GetOptionText(n), textBuffer);
-				Font::PrintString(textBuffer, startRow + row, column * columnSpacing, n == currentSelection);
+				Font::PrintString(textBuffer, startRow + row, 1 + column * columnSpacing, n != currentSelection);
 				column++;
 				if (column == maxColumns)
 				{
@@ -108,7 +113,7 @@ void FrontEnd::Update()
 
 			if (showInventoryOption)
 			{
-				Font::PrintString("items", startRow + row, column * columnSpacing, currentSelection == totalOptions - 1);
+				Font::PrintString("items", startRow + row, 1 + column * columnSpacing, currentSelection != totalOptions - 1);
 			}
 
 			if (Platform::ButtonDown(Platform::Input::B))
@@ -123,7 +128,7 @@ void FrontEnd::Update()
 				}
 				currentSelection = 0;
 			}
-		}
+		}		
 
 		if (Platform::ButtonDown(Platform::Input::Left))
 		{

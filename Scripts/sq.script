@@ -13,9 +13,24 @@ item keycard
 		say "You can't use that here!"
 item magnet
 	title "magnet"
-	description "A magnet"
+	description "A horse shoe shaped magnet that you found in the laboratory on the Arcada."
 	on use
 		say "You can't use that here!"
+
+flag gadgetOn is false
+
+item gadget
+	title "gadget"
+	description when not gadgetOn
+		"Written on the gadget are the words 'dialect translator'. It is currently off."
+	description when gadgetOn
+		"Written on the gadget are the words 'dialect translator'. It is currently on."
+	on use when not gadgetOn
+		say "You turn a dial on the gadget. A light begins to glow."
+		set gadgetOn
+	on use when gadgetOn
+		say "You turn a dial on the gadget. The lights go dim."
+		unset gadgetOn
 
 # Rooms
 
@@ -23,15 +38,27 @@ item magnet
 room intro
 	title "Space Quest Chapter 1"
 	
-	on enter
-		say "The Sarien Encounter"
+	description
+			"The Sarien Encounter"
 			""
 			"Demake by James Howard"
 			"Original game designed by Mark Crowe and Scott Murphy."
+	option "play"
+		say "Light-years from Earth's solar system the people of the galaxy Earnon have been struggling to maintain the precious balance of life."
+		say "The Sun of Earnon is slowly dying. The planet grows cold. Food is no longer plentiful. Life will soon become impossible to sustain."
+		say "The scientific community of Xenon devised a plan to convert one of Earnon's lifeless planets into a new Sun."
+		say "The effort was centered around the development of a device called the Star Generator."
+		say	"The Star Generator would be capable of igniting an otherwise useless planet into a raging ball of flame."
+		say "An expedition set out aboard the starship Arcada to successfully complete development and testing of the Star Generator."
+		say "The Arcada is now returning triumphantly to Xenon with the fully operational Star Generator."
+		say "You serve as a member of the crew of the Arcada as a janitor."
+		say "That's right, a janitor. And not a very good one. You would probably have been sacked and replaced were the Arcada not millions of kilometers from Xenon."
+		say "As we join our story, you have just completed one of your famous on-shift naps in one of the janitorial storage closets."
 		go closet
-	#option "play"
-	#	go closet
-	#option "skip intro"
+	option "skip intro"
+		go closet
+	#option "restore"
+	#	say "Not yet implemented!"
 	#	go closet
 
 room dead
@@ -41,6 +68,8 @@ room dead
 		say "If you continue playing as skillfully as this, we'll never have a chance for a sequel. Better luck next time."
 		
 	option "restart"
+		say "Not yet implemented!"
+	option "restore"
 		say "Not yet implemented!"
 
 # Arcada
@@ -185,21 +214,109 @@ room centralControl
 	option "west"
 		go lowerElevators
 	option "hide" when not avoidedGuard
-		say "You quickly duck behind a desk out of view."
+		say "You hide behind one of the reactor domes, out of view."
 		say "You hear the footsteps of one of the alien intruders getting louder!"
 		say "Unable to see anyone here, the alien leaves to search elsewhere."
 		set avoidedGuard
 	option "hide" when avoidedGuard
-		say "You quickly duck behind a desk out of view."
+		say "You hide behind one of the reactor domes, out of view."
 		say "Nobody comes! You come back out of hiding."
 	option "corpse"
 		say "You search the body of your crewmate and find..."
 		say "nothing."
 
+flag flightPrepElevatorLocked is true
+flag bayDoorsOpen is false
+
 room outsideFlightPrep
-	title "Outside flight prep"
-	description "Outside"
+	title "Above flight prep"
+	description "An elevator here connects to the flight prep room below. There is a console with a large button and a keycard unit."
 	
 	option "west"
 		go centralControl
+	option "down" when flightPrepElevatorLocked
+		say "Alas, the door does not open. You have adorned the door with a small circle of nose grease."
+	option "down" when not flightPrepElevatorLocked
+		go flightPrep
+	option "button" when not bayDoorsOpen
+		say "You press the button. Through a window you see the doors to the vehicle bay slide open."
+		set bayDoorsOpen
+	option "button" when bayDoorsOpen
+		say "You press the button and the vehicle bay doors close."
+		unset bayDoorsOpen
+	on use keycard
+		say "You slide the keycard into its slot. You hear an audible click. You take the keycard back."
+		unset flightPrepElevatorLocked
+	
+flag wearingFlightSuit is false
 		
+room flightPrep
+	title "Flight prep"
+	description "There is a sign on the back wall above a closet and drawer. An airlock door is to the west"
+	
+	option "up"
+		go outsideFlightPrep
+	option "west"
+		go vehicleBay
+	option "sign" when not bayDoorsOpen
+		say "The sign on the wall suggests that the bay doors are not currently open."
+	option "sign" when bayDoorsOpen
+		say "The sign on the wall warns that the bay doors are currently open."
+	option "closet" when not wearingFlightSuit
+		say "You see a flight suit hanging in the closet. You take it and get suited up."
+		set wearingFlightSuit
+	option "closet" when wearingFlightSuit
+		say "There is nothing else in the closet."
+	option "drawer" when not have gadget
+		say "You find some sort of electrical gadget."
+		give gadget
+	option "drawer" when have gadget
+		say "The drawer is empty."
+		
+room vehicleBay
+	title "Vehicle bay"
+	description when bayDoorsOpen
+		"An escape pod sits on a raised platform. Through the open bay doors lies the serenity of deep space."
+	description when not bayDoorsOpen
+		"An escape pod sits on a raised platform. The massive bay doors are closed."
+	on enter when not wearingFlightSuit and bayDoorsOpen
+		say "You take a few steps into the vehicle bay. Without any form of protection against the vacuum of space, you explode into meaty chunks."
+		go dead
+	option "east"
+		go flightPrep
+	option "pod"
+		go escapePod
+		
+flag escapePodSwitchedOn is false
+		
+room escapePod
+	title "Escape pod"
+	description "Sitting in the pilot seat you see a console with all sorts of buttons and switches."
+	option "exit"
+		go vehicleBay
+	option "power" when not escapePodSwitchedOn
+		say "You press the power button, lights turn on and you hear a beep."
+		set escapePodSwitchedOn
+	option "power" when escapePodSwitchedOn
+		say "Your effort to power-down the pod was wisely overridden by the on-board computer."
+	option "throttle" when not escapePodSwitchedOn
+		say "You pull at the throttle but nothing happens."
+	option "throttle" when escapePodSwitchedOn and not bayDoorsOpen
+		say "You pull the throttle and the escape pod rumbles to life."
+		say "The escape pod smashes into the bay doors and explodes in a spectacular fashion. You die instantly."
+		go dead
+	option "throttle" when escapePodSwitchedOn and bayDoorsOpen
+		say "You pull the throttle and the escape pod rumbles to life."
+		say "The escape pod moves slowly out of the vehicle bay and into space."
+		go demoFinished
+	option "nav" when not escapePodSwitchedOn
+		say "You press the nav button but nothing happens."
+	option "nav" when escapePodSwitchedOn
+		say "The computer beeps and displays a message:"
+			"Error: cannot initiate auto navigation whilst docked."
+	
+room demoFinished
+	title "Demo complete"
+	on enter
+		say "Congratulations! You have narrowly escaped an explosive death! Don't start patting yourself on the back just yet, though. You are now traveling aimlessly through the cosmos."
+		say "This is the end of the demo."
