@@ -7,7 +7,7 @@ using namespace std;
 
 const char* TokenTypeNames[] =
 {
-	"null", "room", "item", "title", "description", "option", "go", "say", "give", "remove", "set", "unset", "flag", "on", "enter", "use", "when", "not", "and", "or", "is", "have", "true", "false", "string", "identifier"
+	"null", "room", "item", "title", "description", "option", "go", "say", "give", "remove", "set", "unset", "flag", "on", "enter", "exit", "use", "when", "not", "and", "or", "is", "have", "true", "false", "string", "identifier"
 };
 
 void Parser::ThrowUnexpectedToken()
@@ -205,6 +205,13 @@ void Parser::ParseEvent(GameObject* gameObject)
 	{
 		case TokenType::Enter:
 		gameObject->instructions.push_back(new EventInstruction((uint8_t)EVENT_ENTERROOM, "on enter"));
+		NextToken();
+		ParseCondition(gameObject);
+		ParseInstructions(gameObject);
+		break;
+
+		case TokenType::Exit:
+		gameObject->instructions.push_back(new EventInstruction((uint8_t)EVENT_EXITROOM, "on exit"));
 		NextToken();
 		ParseCondition(gameObject);
 		ParseInstructions(gameObject);

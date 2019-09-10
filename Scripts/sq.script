@@ -175,19 +175,14 @@ room centralControl
 	# This does not look good. Through the window just above the control console, you can see down into the vehicle bay below."
 	on enter when not avoidedGuard
 		say "You think you hear footsteps."
-	option "east" when not avoidedGuard
+	on exit when not avoidedGuard
 		say "Suddenly an alien intruder appears brandishing a large pulse rifle."
 		say "BANG! In one shot you hit the ground lifeless."
 		say "The alien observes his handiwork briefly, then leaves."
 		go dead
-	option "east" when avoidedGuard
+	option "east"
 		go outsideFlightPrep
-	option "west" when not avoidedGuard
-		say "Suddenly an alien intruder appears brandishing a large pulse rifle."
-		say "BANG! In one shot you hit the ground lifeless."
-		say "The alien observes his handiwork briefly, then leaves."
-		go dead
-	option "west" when avoidedGuard
+	option "west"
 		go lowerElevators
 	option "hide" when not avoidedGuard
 		say "You quickly duck behind a desk out of view."

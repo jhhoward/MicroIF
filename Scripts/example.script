@@ -1,0 +1,61 @@
+# An example script
+# Everything on the line after a # is a comment
+# All white space is ignored but can be used to make code easier to read
+
+# Variables are single bit flags that can either be true or false
+flag doorIsLocked is true
+
+# Items are things that can be collected and stored in the player's inventory to use later
+item key
+	# The title and description attributes defines how the item is displayed in the inventory
+	title "key"
+	description "A shiny, copper coloured key."
+	
+	# This event is called when the item can otherwise not be used
+	on use
+		say "There is nowhere to use the key here."
+		
+# Rooms are places where the player can visit. The first room defined is the starting room
+room kitchen
+	title "The kitchen"
+	# Attributes can have conditionals associated with them
+	description when doorIsLocked
+		"You are in the kitchen. It looks quite messy. The only door out of here is locked!"
+	description when not doorIsLocked
+		"You are in the kitchen. It looks quite messy. A door to the east is open."
+		
+	# Options are displayed to the player to choose from
+	option "fridge"
+		say "Nothing inside the fridge except a broken ketchup bottle."
+	
+	# Options can have conditionals
+	option "east" when doorIsLocked
+		say "The door is blocking your path."
+	option "east" when not doorIsLocked
+		go diningRoom
+	
+	# Conditionals can be based on item possession
+	option "cupboard" when not have key
+		say "Looking inside the cupboard you find a key."
+		give key
+	option "cupboard" when have key
+		say "Nothing else in the cupboard worth taking."
+		
+	# Events for handling item usage
+	on use key when doorIsLocked
+		say "You unlock the door."
+		unset doorIsLocked
+	on use key when not doorIsLocked
+		say "The door is already unlocked"
+		
+
+room diningRoom
+	title "The dining room"
+	description "A long table with chairs. The kitchen is to the west."
+	
+	# You can assign events for entering a room
+	on enter
+		say "You just walked into the dining room!"
+	
+	option "west"
+		go kitchen

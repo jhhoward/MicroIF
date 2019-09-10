@@ -12,27 +12,27 @@
 // centralControl [3]
 0x71,0x00,			// data offset
 // closet [4]
-0xe0,0x00,			// data offset
+0xc7,0x00,			// data offset
 // computer [5]
-0xf0,0x00,			// data offset
+0xd7,0x00,			// data offset
 // corridorEnd [6]
-0x1f,0x01,			// data offset
+0x06,0x01,			// data offset
 // dead [7]
-0x4a,0x01,			// data offset
+0x31,0x01,			// data offset
 // intro [8]
-0x5e,0x01,			// data offset
+0x45,0x01,			// data offset
 // lab [9]
-0x6b,0x01,			// data offset
+0x52,0x01,			// data offset
 // library [10]
-0xa5,0x01,			// data offset
+0x8c,0x01,			// data offset
 // lowerElevators [11]
-0x02,0x02,			// data offset
+0xe9,0x01,			// data offset
 // outsideFlightPrep [12]
-0x1c,0x02,			// data offset
+0x03,0x02,			// data offset
 // upperDeck [13]
-0x2c,0x02,			// data offset
+0x13,0x02,			// data offset
 // upperElevators [14]
-0x4c,0x02,			// data offset
+0x33,0x02,			// data offset
 // cartridge data
 0x0b,0xfe,			// title
 0x0c,0x52,0x09,		// "cartridge"
@@ -62,12 +62,12 @@
 0x0c,0x73,0x03,		// "Central control"
 0x0b,0xff,			// description
 0x0c,0xf2,0x07,		// "You are in the central control area of the Arcada. The reactor domes pulsate irregularly, as if they had been tampered with."
-0x0b,0xfd,			// on enter
+0x0b,0xfc,			// on enter
 0x04,				// when
 0x06,				// not
 0x05,0x04,			// eval avoidedGuard
 0x02,0xe8,0x08,		// say "You think you hear footsteps."
-0x03,0x66,0x09,		// option "east"
+0x0b,0xfd,			// on exit
 0x04,				// when
 0x06,				// not
 0x05,0x04,			// eval avoidedGuard
@@ -76,20 +76,8 @@
 0x02,0x9e,0x05,		// say "The alien observes his handiwork briefly, then leaves."
 0x01,0x07,			// go dead
 0x03,0x66,0x09,		// option "east"
-0x04,				// when
-0x05,0x04,			// eval avoidedGuard
 0x01,0x0c,			// go outsideFlightPrep
 0x03,0x97,0x09,		// option "west"
-0x04,				// when
-0x06,				// not
-0x05,0x04,			// eval avoidedGuard
-0x02,0xe2,0x04,		// say "Suddenly an alien intruder appears brandishing a large pulse rifle."
-0x02,0x58,0x03,		// say "BANG! In one shot you hit the ground lifeless."
-0x02,0x9e,0x05,		// say "The alien observes his handiwork briefly, then leaves."
-0x01,0x07,			// go dead
-0x03,0x97,0x09,		// option "west"
-0x04,				// when
-0x05,0x04,			// eval avoidedGuard
 0x01,0x0b,			// go lowerElevators
 0x03,0x70,0x09,		// option "hide"
 0x04,				// when
@@ -161,7 +149,7 @@
 // dead data
 0x0b,0xfe,			// title
 0x0c,0x80,0x03,		// "Game over!"
-0x0b,0xfd,			// on enter
+0x0b,0xfc,			// on enter
 0x02,0x06,0x05,		// say "Thank you for playing Space Quest. Too bad you've failed miserably and doomed all your people to a horrible death at the hands of the Sariens."
 0x02,0xf7,0x03,		// say "If you continue playing as skillfully as this, we'll never have a chance for a sequel. Better luck next time."
 0x03,0x88,0x09,		// option "restart"
@@ -170,7 +158,7 @@
 // intro data
 0x0b,0xfe,			// title
 0x0c,0xd7,0x04,		// "Space Quest Chapter 1"
-0x0b,0xfd,			// on enter
+0x0b,0xfc,			// on enter
 0x02,0x57,0x05,		// say "The Sarien Encounter  Demake by James Howard Original game designed by Mark Crowe and Scott Murphy."
 0x01,0x04,			// go closet
 0x00,				// end
@@ -211,12 +199,12 @@
 0x04,				// when
 0x05,0x05,			// eval scientistEntered
 0x0c,0xe1,0x06,		// "This is the Arcada's data archive. Many volumes of information are stored on data cartridges. A scientist lies on the floor."
-0x0b,0xfd,			// on enter
+0x0b,0xfc,			// on enter
 0x04,				// when
 0x06,				// not
 0x05,0x07,			// eval visitedLibrary
 0x09,0x07,			// set visitedLibrary
-0x0b,0xfd,			// on enter
+0x0b,0xfc,			// on enter
 0x04,				// when
 0x05,0x07,			// eval visitedLibrary
 0x07,				// and
@@ -272,7 +260,7 @@
 0x0c,0x93,0x07,		// "Upper deck"
 0x0b,0xff,			// description
 0x0c,0xbf,0x04,		// "One of the many hallways of the Arcada."
-0x0b,0xfd,			// on enter
+0x0b,0xfc,			// on enter
 0x04,				// when
 0x06,				// not
 0x05,0x03,			// eval alarmSounded

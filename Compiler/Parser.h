@@ -21,6 +21,7 @@ enum class TokenType
 	Flag,
 	On,
 	Enter,
+	Exit,
 	Use,
 	When,
 	Not,

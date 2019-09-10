@@ -81,6 +81,8 @@ private:
 	ExecutionResult Execute(uint8_t objectIndex, ExecutionMode mode, uint8_t param = 0);
 	ExecutionResult ExecuteInstructions(bool stepOver);
 
+	ExecutionResult EnterRoom(uint8_t newRoom);
+
 	bool GetFlag(uint8_t index);
 	void SetFlag(uint8_t index, bool value);
 	bool EvaluateCondition();

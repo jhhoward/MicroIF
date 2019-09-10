@@ -9,21 +9,35 @@ VM::VM(DataArchive& inGameData, DataArchive& inStringData) : gameData(inGameData
 
 void VM::Reset()
 {
-	currentRoomIndex = ReadByteAtAddress(startingRoomDataLocation);
-	
 	gameData.Seek(0);
 	for(int n = 0; n < 256 / 8; n++)
 	{
 		flagState[n] = gameData.ReadByte();
 	}
 
-	lastExecutionResult = Execute(currentRoomIndex, ExecutionMode::ExecuteEvent, EVENT_ENTERROOM);
+	uint8_t startingRoomIndex = ReadByteAtAddress(startingRoomDataLocation);
+	EnterRoom(startingRoomIndex);
+}
 
-	if(lastExecutionResult.DidComplete())
+VM::ExecutionResult VM::EnterRoom(uint8_t newRoom)
+{
+	uint8_t oldRoom = currentRoomIndex;
+	currentRoomIndex = newRoom;
+
+	lastExecutionResult = Execute(oldRoom, ExecutionMode::ExecuteEvent, EVENT_EXITROOM);
+
+	if (!lastExecutionResult.DidYield())
 	{
-		Execute(currentRoomIndex, ExecutionMode::EnumerateOptions);
+		lastExecutionResult = Execute(currentRoomIndex, ExecutionMode::ExecuteEvent, EVENT_ENTERROOM);
+	}
+
+	if (!lastExecutionResult.DidYield())
+	{
+		lastExecutionResult = Execute(currentRoomIndex, ExecutionMode::EnumerateOptions);
 		state = State::WaitingForOptionChoice;
 	}
+
+	return lastExecutionResult;
 }
 
 void VM::GetTextInternal(StringIndex stringIndex, char** buffer)
@@ -117,16 +131,7 @@ VM::ExecutionResult VM::ExecuteInstructions(bool stepOver)
 				uint8_t nextRoom = gameData.ReadByte();
 				if(EvaluateCondition() && !stepOver)
 				{
-					currentRoomIndex = nextRoom;
-					ExecutionResult goResult = Execute(currentRoomIndex, ExecutionMode::ExecuteEvent, EVENT_ENTERROOM);
-					if (!goResult.DidYield())
-					{
-						Execute(currentRoomIndex, ExecutionMode::EnumerateOptions);
-					}
-					else
-					{
-						return goResult;
-					}
+					return EnterRoom(nextRoom);
 				}
 			}
 			break;

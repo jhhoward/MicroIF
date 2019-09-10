@@ -20,7 +20,8 @@ enum
 enum
 {
 	// Events 0 .. n are 'use item' events where the event index references the item by index
-	EVENT_ENTERROOM = 253,
+	EVENT_ENTERROOM = 252,
+	EVENT_EXITROOM,
 	EVENT_NAMEATTRIBUTE,
 	EVENT_DESCRIPTIONATTRIBUTE
 };
